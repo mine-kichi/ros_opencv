@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="img_read" name="img_read" type="talker"/>
+  <node pkg="img_read" name="img_show" type="listener"/>
+</launch>
