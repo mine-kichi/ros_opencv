@@ -5,6 +5,7 @@ nvidia-docker run \
 -v /mnt/HDD/work:/home/mine/work \
 -v /usr/local/driveworks:/usr/local/driveworks \
 -v /usr/local/driveworks-0.3:/usr/local/driveworks-0.3 \
+-v /etc:/etc \
 --rm=true \
 -u mine \
 -it \

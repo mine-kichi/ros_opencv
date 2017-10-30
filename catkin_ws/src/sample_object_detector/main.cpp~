@@ -1,0 +1,163 @@
+/////////////////////////////////////////////////////////////////////////////////////////
+// This code contains NVIDIA Confidential Information and is disclosed
+// under the Mutual Non-Disclosure Agreement.
+//
+// Notice
+// ALL NVIDIA DESIGN SPECIFICATIONS AND CODE ("MATERIALS") ARE PROVIDED "AS IS" NVIDIA MAKES
+// NO REPRESENTATIONS, WARRANTIES, EXPRESSED, IMPLIED, STATUTORY, OR OTHERWISE WITH RESPECT TO
+// THE MATERIALS, AND EXPRESSLY DISCLAIMS ANY IMPLIED WARRANTIES OF NONINFRINGEMENT,
+// MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+//
+// NVIDIA Corporation assumes no responsibility for the consequences of use of such
+// information or for any infringement of patents or other rights of third parties that may
+// result from its use. No license is granted by implication or otherwise under any patent
+// or patent rights of NVIDIA Corporation. No third party distribution is allowed unless
+// expressly authorized by NVIDIA.  Details are subject to change without notice.
+// This code supersedes and replaces all information previously supplied.
+// NVIDIA Corporation products are not authorized for use as critical
+// components in life support devices or systems without express written approval of
+// NVIDIA Corporation.
+//
+// Copyright (c) 2015-2016 NVIDIA Corporation. All rights reserved.
+//
+// NVIDIA Corporation and its licensors retain all intellectual property and proprietary
+// rights in and to this software and related documentation and any modifications thereto.
+// Any use, reproduction, disclosure or distribution of this software and related
+// documentation without an express license agreement from NVIDIA Corporation is
+// strictly prohibited.
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <memory>
+#include <thread>
+#include <unordered_map>
+
+// Sample
+//#include <common/DataPath.hpp>
+//#include <common/ProgramArguments.hpp>
+//#include <common/SampleFramework.hpp>
+
+// CORE
+#include <dw/core/Context.h>
+#include <dw/core/Logger.h>
+
+// IMAGE
+#include <dw/image/FormatConverter.h>
+#include <dw/image/ImageStreamer.h>
+
+// DNN
+#include <dnn_common/DNNInference.hpp>
+
+#ifdef VIBRANTE
+#include <dnn_common/SensorIONvmedia.hpp>
+#endif
+
+
+//------------------------------------------------------------------------------
+// Variables
+//------------------------------------------------------------------------------
+
+dwContextHandle_t gSdk                   = DW_NULL_HANDLE;
+dwSALHandle_t gSal                       = DW_NULL_HANDLE;
+dwImageStreamerHandle_t gCuda2gl         = DW_NULL_HANDLE;
+dwImageStreamerHandle_t gNvMedia2Cuda    = DW_NULL_HANDLE;
+dwImageFormatConverterHandle_t gYuv2rgba = DW_NULL_HANDLE;
+dwRendererHandle_t gRenderer             = DW_NULL_HANDLE;
+dwRenderBufferHandle_t gLineBuffer       = DW_NULL_HANDLE;
+dwSensorHandle_t gCameraSensor           = DW_NULL_HANDLE;
+
+dwRect gScreenRectangle;
+
+dwImageCUDA *gRgbaImage;
+dwImageCUDA *gYuvImage;
+std::unique_ptr<ISensorIO> gSensorIO;
+
+uint32_t gCameraWidth  = 0U;
+uint32_t gCameraHeight = 0U;
+
+std::unique_ptr<DNNInference> gDnnInference;
+std::vector<dwBox2D> gDnnBoxList;
+//------------------------------------------------------------------------------
+
+
+//#######################################################################################
+void initDriveworks()
+{
+    // create a Logger to log to console
+    // we keep the ownership of the logger at the application level
+    dwLogger_initialize(getConsoleLoggerCallback(true));
+    dwLogger_setLogLevel(DW_LOG_VERBOSE);
+
+    // instantiate Driveworks SDK context
+    dwContextParameters sdkParams = {};
+
+#ifdef VIBRANTE
+    sdkParams.eglDisplay = gWindow->getEGLDisplay();
+#endif
+
+    dwInitialize(&gSdk, DW_VERSION, &sdkParams);
+}
+
+//#######################################################################################
+void initDNN()
+{
+    gDnnInference.reset(new DNNInference(gSdk));
+
+    if (!gArguments.has("tensorRT_model")) {
+        std::string caffePrototxt = gArguments.get("caffe_prototxt");
+        std::string caffeModel    = gArguments.get("caffe_model");
+        std::cout << "Initializing Caffe Network: " << caffePrototxt.c_str() << ", "
+                  << caffeModel.c_str() << std::endl;
+        gDnnInference->buildFromCaffe(caffePrototxt.c_str(), caffeModel.c_str());
+    } else {
+        std::string tensorRTModel = gArguments.get("tensorRT_model");
+        std::cout << "Initializing TensorRT Network: " << tensorRTModel.c_str() << std::endl;
+        gDnnInference->buildFromTensorRT(tensorRTModel.c_str());
+    }
+}
+
+//#######################################################################################
+void init()
+{
+    initDriveworks();
+
+    initDNN();
+}
+
+//#######################################################################################
+void release()
+{
+    gDnnInference.reset();
+}
+
+//#######################################################################################
+void runDetector()
+{
+    // Run inference if the model is valid
+    if (gDnnInference->isLoaded()) {
+        gDnnBoxList.clear();
+        gDnnInference->inferSingleFrame(&gDnnBoxList, gRgbaImage, true);
+//	printf("%p\n",&gDnnBoxList);
+        for (std::vector<dwRect>::const_iterator i = gDnnBoxList.begin ();
+                        i != gDnnBoxList.end (); i++)
+        {
+                (void) printf ("height=%d,width=%d,x=%d,y=%d,\n", i->height,i->width,i->x,i->y);
+        }
+        drawBoxes(gDnnBoxList, NULL, static_cast<float32_t>(gCameraWidth),
+                  static_cast<float32_t>(gCameraHeight), gLineBuffer, gRenderer);
+    }
+}
+
+//#######################################################################################
+int main(int argc, const char **argv)
+{
+
+  print ("hello\n");
+//    runDetector();
+//    release();
+    // release framework
+//    releaseSampleApp();
+
+    return 0;
+}
